@@ -12,9 +12,9 @@ export const createProductValidator = Joi.object({
     "any.required": "Product type is required",
   }),
 
-  unit: Joi.string().required().messages({
-    "string.empty": "Product unit must not be empty",
-    "any.required": "Product unit is required",
+  deadline: Joi.date().required().min("now").messages({
+    "any.required": "Deadline is required",
+    "date.min": "Date must not be in the past.",
   }),
   description: Joi.string().min(6).max(1000).required().messages({
     "string.empty": "Product description must not be empty",

@@ -58,7 +58,7 @@ export const getUser = async (req, res) => {
         badges: true,
         notifications: true,
         tasks: { include: { subtasks: true } },
-        daily_task_record: true,
+        daily_task_record: { include: { task: true } },
         level: true,
       },
     });
@@ -145,7 +145,7 @@ export const signUp = async (req, res) => {
       },
     });
 
-    generateTokenAndSetCookie(newUser.user_id, res);
+    generateTokenAndSetCookie(newUser.id, res);
 
     return res
       .status(200)

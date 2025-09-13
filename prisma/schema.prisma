@@ -15,21 +15,24 @@ enum TaskStatus {
 }
 
 model task {
-  id         String     @id @default(cuid())
-  name       String
-  note       String?
-  category   String[]
-  importance String
-  urgency    String
-  deadline   DateTime
-  status     TaskStatus @default(NOT_DONE)
-  created_at DateTime   @default(now())
+  id           String     @id @default(cuid())
+  name         String
+  note         String?
+  category     String[]
+  is_important Boolean    @default(false)
+  is_urgent    Boolean    @default(false)
+  deadline     DateTime
+  status       TaskStatus @default(NOT_DONE)
+  created_at   DateTime   @default(now())
 
-  user    user   @relation(fields: [user_id], references: [id])
+  user    user   @relation(fields: [user_id], references: [id], onDelete: Cascade)
   user_id String
 
-  subtasks subtask[]
-  reminder reminder?
+  subtasks               subtask[]
+  reminder               reminder?
+  dailyTaskRecordDate    DateTime?        @db.Date
+  dailyTaskRecord        dailyTaskRecord? @relation(fields: [dailyTaskRecordUser_id, dailyTaskRecordDate], references: [user_id, date])
+  dailyTaskRecordUser_id String?
 }
 
 model reminder {
@@ -37,7 +40,7 @@ model reminder {
   time       DateTime
   created_at DateTime @default(now())
 
-  task    task   @relation(fields: [task_id], references: [id])
+  task    task   @relation(fields: [task_id], references: [id], onDelete: Cascade)
   task_id String @unique
 }
 
@@ -47,7 +50,7 @@ model notification {
   created_at DateTime @default(now())
   is_checked Boolean  @default(false)
 
-  user    user?   @relation(fields: [user_id], references: [id])
+  user    user?   @relation(fields: [user_id], references: [id], onDelete: Cascade)
   user_id String?
 }
 
@@ -57,16 +60,18 @@ model subtask {
   is_completed Boolean  @default(false)
   created_at   DateTime @default(now())
 
-  task    task   @relation(fields: [task_id], references: [id])
+  task    task   @relation(fields: [task_id], references: [id], onDelete: Cascade)
   task_id String
 }
 
 model dailyTaskRecord {
-  date            DateTime @id @db.Date
-  completed_tasks Int
-
-  user    user   @relation(fields: [user_id], references: [id])
   user_id String
+  date    DateTime @db.Date
+
+  user            user   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  completed_tasks task[]
+
+  @@id([user_id, date])
 }
 
 model badge {
@@ -101,6 +106,6 @@ model user {
   notifications     notification[]
   daily_task_record dailyTaskRecord[]
 
-  level   level?  @relation(fields: [levelId], references: [id])
+  level   level?  @relation(fields: [levelId], references: [id], onDelete: Cascade)
   levelId String?
 }

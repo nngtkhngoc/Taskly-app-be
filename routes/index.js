@@ -12,7 +12,7 @@ import productRouter from "./productRouter.js";
 import serviceRouter from "./serviceRouter.js";
 import unitRouter from "./unitRouter.js";
 import authRouter from "./authRouter.js";
-import cartRouter from "./cartRouter.js";
+// import cartRouter from "./cartRouter.js";
 
 export const routes = (app) => {
   app.use("/api/products", productRouter);
@@ -29,5 +29,5 @@ export const routes = (app) => {
   app.use("/api/purchase-orders", purchaseOrdersRouter);
   app.use("/api/sales-orders", salesOrdersRouter);
   app.use("/api/purchase-order-details", purchaseOrderDetailRouter);
-  app.use("/api/carts", cartRouter);
+  // app.use("/api/carts", cartRouter);
 };

@@ -4,7 +4,6 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { routes } from "./routes/index.js";
 import cookieParser from "cookie-parser";
-import passport from "./config/passport.js";
 import cookieSession from "cookie-session";
 
 dotenv.config();
@@ -30,8 +29,6 @@ app.use(
     keys: "ancks",
   })
 );
-app.use(passport.initialize());
-app.use(passport.session());
 
 routes(app);
 app.listen(PORT, () => {
