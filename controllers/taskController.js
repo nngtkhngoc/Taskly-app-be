@@ -3,11 +3,13 @@ import {
   createTaskValidator,
   updateTaskValidator,
 } from "../validation/taskValidation.js";
+import moment from "moment";
 
 export const getTasksByUserId = async (req, res) => {
   const { id } = req;
+  console.log("get task: ", id);
   try {
-    const tasks = await prisma.task.findUnique({
+    const tasks = await prisma.task.findMany({
       where: { user_id: id },
       include: { subtasks: true, reminder: true },
     });
@@ -20,8 +22,24 @@ export const getTasksByUserId = async (req, res) => {
   }
 };
 
+export const getTaskById = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const tasks = await prisma.task.findUnique({
+      where: { id },
+      include: { subtasks: true, reminder: true },
+    });
+    return res.status(200).json({
+      data: tasks,
+    });
+  } catch (error) {
+    console.log(error.toString());
+    res.status(500).json({ error: "Failed to retrieve tasks" });
+  }
+};
+
 export const createTask = async (req, res) => {
-  const { name, note, category, importance, urgency, deadline } = req.body;
+  const { name, note, category, is_important, is_urgent, deadline } = req.body;
   const { id } = req;
 
   try {
@@ -33,15 +51,22 @@ export const createTask = async (req, res) => {
 
     await createTaskValidator.validateAsync(req.body);
 
+    const parsedDeadline = deadline
+      ? moment(deadline, "YYYY-MM-DD").add(1, "days").toDate()
+      : null;
+
+    console.log(parsedDeadline);
+    // const user = await prisma.user.findUnique({ id });
+
     const newTask = await prisma.task.create({
       data: {
         user_id: id,
         name,
         note,
         category,
-        importance,
-        urgency,
-        deadline,
+        is_important,
+        is_urgent,
+        deadline: parsedDeadline,
       },
     });
 
@@ -55,13 +80,11 @@ export const createTask = async (req, res) => {
       });
     }
 
-    console.error("Error creating task:", error);
     return res
       .status(500)
       .json({ success: false, error: "Internal Server Error" });
   }
 };
-
 export const deleteTask = async (req, res) => {
   const id = req.params.id;
   try {
@@ -75,7 +98,7 @@ export const deleteTask = async (req, res) => {
         .json({ success: false, message: "Task not found" });
     }
 
-    await prisma.units.delete({ where: { id } });
+    await prisma.task.delete({ where: { id } });
 
     return res
       .status(200)
@@ -90,7 +113,7 @@ export const deleteTask = async (req, res) => {
 
 export const updateTask = async (req, res) => {
   const id = req.params.id;
-  const { name, note, category, importance, urgency, deadline } = req.body;
+  const { name, note, category, is_important, is_urgent, deadline } = req.body;
 
   try {
     if (!req.body || Object.keys(req.body).length === 0) {
@@ -116,9 +139,11 @@ export const updateTask = async (req, res) => {
         name: name ?? oldTask.name,
         note: note ?? oldTask.note,
         category: category ?? oldTask.category,
-        importance: importance ?? oldTask.importance,
-        urgency: urgency ?? oldTask.urgency,
-        deadline: deadline ?? oldTask.deadline,
+        is_important: is_important ?? oldTask.is_important,
+        is_urgent: is_urgent ?? oldTask.is_urgent,
+        deadline: deadline
+          ? moment(deadline, "YYYY-MM-DD").add(1, "days").toDate()
+          : oldTask.deadline,
       },
     });
 
@@ -166,7 +191,9 @@ async function addXpAndCheckLevel(userId) {
   let newXp = user.xp + TASK_XP;
   let currentLevel = user.level;
 
-  // Nếu user chưa có level thì set level 1 (giả sử level thấp nhất có xp_required = 0)
+  console.log("new XP", newXp);
+  console.log("current level", currentLevel);
+
   if (!currentLevel) {
     currentLevel = await prisma.level.findFirst({
       orderBy: { xp_required: "asc" },
@@ -175,11 +202,13 @@ async function addXpAndCheckLevel(userId) {
 
   // Tìm level tiếp theo (xp_required > currentLevel.xp_required)
   const nextLevel = await prisma.level.findFirst({
-    where: { xp_required: { gt: currentLevel.xp_required } },
-    orderBy: { xp_required: "asc" },
+    where: { name: { gt: currentLevel.name } },
+    orderBy: { name: "asc" },
   });
 
+  console.log("next level", nextLevel);
   let newLevelId = user.levelId;
+  console.log("user level", user.levelId);
 
   // Nếu có level tiếp theo và xp vượt ngưỡng
   if (nextLevel && newXp >= nextLevel.xp_required) {
@@ -200,16 +229,23 @@ async function addXpAndCheckLevel(userId) {
 }
 
 export const markTaskCompleted = async (req, res) => {
-  const { id } = req; // userId từ middleware auth
+  const { id } = req;
   const { taskId } = req.params;
 
   try {
-    // Date hôm nay
     const parsedDate = new Date();
     parsedDate.setHours(0, 0, 0, 0);
 
     await getOrCreateDailyRecord(id, parsedDate);
 
+    await prisma.task.update({
+      where: {
+        id: taskId,
+      },
+      data: {
+        status: "COMPLETED",
+      },
+    });
     const updatedRecord = await prisma.dailyTaskRecord.update({
       where: {
         user_id_date: { user_id: id, date: parsedDate },
@@ -220,7 +256,6 @@ export const markTaskCompleted = async (req, res) => {
       include: { completed_tasks: true },
     });
 
-    // Cộng XP và check level
     const updatedUser = await addXpAndCheckLevel(id);
 
     return res.status(200).json({
@@ -300,7 +335,7 @@ async function unmarkTaskByTaskId(userId, taskId) {
   });
 }
 
-export const unmarkTaskById = async (req, res) => {
+export const unmarkTaskCompleted = async (req, res) => {
   const { id } = req;
   const { taskId } = req.params;
   try {

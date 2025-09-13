@@ -106,6 +106,6 @@ model user {
   notifications     notification[]
   daily_task_record dailyTaskRecord[]
 
-  level   level?  @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  level   level?  @relation(fields: [levelId], references: [id])
   levelId String?
 }

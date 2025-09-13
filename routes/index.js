@@ -12,14 +12,17 @@ import productRouter from "./productRouter.js";
 import serviceRouter from "./serviceRouter.js";
 import unitRouter from "./unitRouter.js";
 import authRouter from "./authRouter.js";
+import taskRouter from "./taskRouter.js";
 // import cartRouter from "./cartRouter.js";
 
 export const routes = (app) => {
+  app.use("/api/auth", authRouter);
+  app.use("/api/task", taskRouter);
+
   app.use("/api/products", productRouter);
   app.use("/api/suppliers", supplierRouter);
   app.use("/api/product-types", productTypeRouter);
   app.use("/api/units", unitRouter);
-  app.use("/api/auth", authRouter);
   app.use("/api/services", serviceRouter);
   app.use("/api/inventory-reports", inventoryReportRouter);
   app.use("/api/service-orders", serviceOrdersRouter);
