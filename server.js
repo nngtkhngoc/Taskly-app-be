@@ -17,7 +17,7 @@ app.use(
     origin: [
       "http://localhost:5173",
       "http://localhost:5174",
-      "https://jewelry-store-qk81.vercel.app",
+      "https://taskio-fe.vercel.app/",
     ],
     credentials: true,
   })
