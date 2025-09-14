@@ -19,6 +19,7 @@ router
   .route("/")
   .get(verifyToken, getTasksByUserId)
   .post(verifyToken, createTask);
+router.route("/record").get(verifyToken, getDailyRecordForUser);
 
 router
   .route("/:id")
@@ -30,8 +31,6 @@ router
   .route("/completed/:taskId")
   .post(verifyToken, markTaskCompleted)
   .delete(verifyToken, unmarkTaskCompleted);
-
-router.route("/record").get(verifyToken, getDailyRecordForUser);
 
 router.route("/priority/:taskId").put(verifyToken, updateTaskPriority);
 

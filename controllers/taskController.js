@@ -256,7 +256,6 @@ async function getOrCreateDailyRecord(userId, date) {
 const TASK_XP = 10;
 
 async function addXpAndCheckLevel(userId) {
-  // Lấy user cùng level hiện tại
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: { level: true },
@@ -276,7 +275,6 @@ async function addXpAndCheckLevel(userId) {
     });
   }
 
-  // Tìm level tiếp theo (xp_required > currentLevel.xp_required)
   const nextLevel = await prisma.level.findFirst({
     where: { name: { gt: currentLevel.name } },
     orderBy: { name: "asc" },
@@ -286,12 +284,10 @@ async function addXpAndCheckLevel(userId) {
   let newLevelId = user.levelId;
   console.log("user level", user.levelId);
 
-  // Nếu có level tiếp theo và xp vượt ngưỡng
   if (nextLevel && newXp >= nextLevel.xp_required) {
     newLevelId = nextLevel.id;
   }
 
-  // Update user
   const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: {
@@ -312,24 +308,22 @@ export const markTaskCompleted = async (req, res) => {
     const parsedDate = new Date();
     parsedDate.setHours(0, 0, 0, 0);
 
-    await getOrCreateDailyRecord(id, parsedDate);
+    const completedAt = new Date(parsedDate);
+    completedAt.setDate(completedAt.getDate() + 1);
+
+    await getOrCreateDailyRecord(id, completedAt);
 
     await prisma.task.update({
-      where: {
-        id: taskId,
-      },
+      where: { id: taskId },
       data: {
         status: "COMPLETED",
-        completed_at: parsedDate,
+        completed_at: completedAt,
       },
     });
+
     const updatedRecord = await prisma.dailyTaskRecord.update({
-      where: {
-        user_id_date: { user_id: id, date: parsedDate },
-      },
-      data: {
-        tasks: { connect: { id: taskId } },
-      },
+      where: { user_id_date: { user_id: id, date: completedAt } },
+      data: { tasks: { connect: { id: taskId } } },
       include: { tasks: true },
     });
 
@@ -456,10 +450,12 @@ export const unmarkTaskCompleted = async (req, res) => {
 };
 
 export const getDailyRecordForUser = async (req, res) => {
-  try {
-    const { id } = req;
-    const { from, to } = req.query;
+  const { id } = req;
+  const { from, to } = req.query;
+  console.log("id", id);
 
+  try {
+    console.log("id", id);
     if (!from || !to) {
       return res.status(400).json({ error: "Missing from/to parameters" });
     }
@@ -479,11 +475,11 @@ export const getDailyRecordForUser = async (req, res) => {
           lte: toDate,
         },
       },
-      include: { completed_tasks: true },
+      include: { tasks: true },
       orderBy: { date: "asc" },
     });
 
-    return res.json(records);
+    return res.status(200).json({ success: true, data: records });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
