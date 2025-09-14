@@ -68,8 +68,8 @@ model dailyTaskRecord {
   user_id String
   date    DateTime @db.Date
 
-  user            user   @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  completed_tasks task[]
+  user  user   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  tasks task[]
 
   @@id([user_id, date])
 }

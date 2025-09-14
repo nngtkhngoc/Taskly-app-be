@@ -7,15 +7,24 @@ import moment from "moment";
 
 export const getTasksByUserId = async (req, res) => {
   const { id } = req;
-  console.log("get task: ", id);
+  const { startDate, endDate } = req.query;
+
   try {
+    const where = { user_id: id };
+
+    if (startDate || endDate) {
+      where.deadline = {};
+      if (startDate) where.deadline.gte = new Date(startDate);
+      if (endDate) where.deadline.lte = new Date(endDate);
+    }
+
     const tasks = await prisma.task.findMany({
-      where: { user_id: id },
+      where,
       include: { subtasks: true, reminder: true },
+      orderBy: [{ deadline: "asc" }, { created_at: "asc" }],
     });
-    return res.status(200).json({
-      data: tasks,
-    });
+
+    return res.status(200).json({ data: tasks });
   } catch (error) {
     console.log(error.toString());
     res.status(500).json({ error: "Failed to retrieve tasks" });
@@ -39,7 +48,8 @@ export const getTaskById = async (req, res) => {
 };
 
 export const createTask = async (req, res) => {
-  const { name, note, category, is_important, is_urgent, deadline } = req.body;
+  const { name, note, category, is_important, is_urgent, deadline, subtasks } =
+    req.body;
   const { id } = req;
 
   try {
@@ -55,21 +65,47 @@ export const createTask = async (req, res) => {
       ? moment(deadline, "YYYY-MM-DD").add(1, "days").toDate()
       : null;
 
-    console.log(parsedDeadline);
-    // const user = await prisma.user.findUnique({ id });
+    let newTask;
+    if (parsedDeadline <= Date.now) {
+      newTask = await prisma.task.create({
+        data: {
+          user_id: id,
+          name,
+          note,
+          category,
+          is_important,
+          is_urgent,
+          deadline: parsedDeadline,
+        },
+      });
+    } else {
+      newTask = await prisma.task.create({
+        data: {
+          user_id: id,
+          name,
+          note,
+          category,
+          is_important,
+          is_urgent,
+          status: "OVERDUE",
+          deadline: parsedDeadline,
+        },
+      });
 
-    const newTask = await prisma.task.create({
-      data: {
-        user_id: id,
-        name,
-        note,
-        category,
-        is_important,
-        is_urgent,
-        deadline: parsedDeadline,
-      },
-    });
+      await minusXpAndCheckLevel(id, "overdue");
+    }
 
+    if (subtasks) {
+      subtasks.forEach(async (subtask) => {
+        await prisma.subtask.create({
+          data: {
+            task_id: newTask.id,
+            name: subtask.name,
+            is_completed: subtask.is_completed,
+          },
+        });
+      });
+    }
     return res.status(201).json({ success: true, data: newTask });
   } catch (error) {
     console.log("Error creating task:", error);
@@ -85,6 +121,7 @@ export const createTask = async (req, res) => {
       .json({ success: false, error: "Internal Server Error" });
   }
 };
+
 export const deleteTask = async (req, res) => {
   const id = req.params.id;
   try {
@@ -113,7 +150,9 @@ export const deleteTask = async (req, res) => {
 
 export const updateTask = async (req, res) => {
   const id = req.params.id;
-  const { name, note, category, is_important, is_urgent, deadline } = req.body;
+  const { name, note, category, is_important, is_urgent, deadline, subtasks } =
+    req.body;
+  const userId = req.id;
 
   try {
     if (!req.body || Object.keys(req.body).length === 0) {
@@ -126,6 +165,7 @@ export const updateTask = async (req, res) => {
 
     const oldTask = await prisma.task.findUnique({
       where: { id },
+      include: { subtasks: true },
     });
     if (!oldTask) {
       return res
@@ -133,7 +173,7 @@ export const updateTask = async (req, res) => {
         .json({ success: false, message: "Task not found" });
     }
 
-    const updatedTask = await prisma.task.update({
+    let updatedTask = await prisma.task.update({
       where: { id },
       data: {
         name: name ?? oldTask.name,
@@ -144,8 +184,42 @@ export const updateTask = async (req, res) => {
         deadline: deadline
           ? moment(deadline, "YYYY-MM-DD").add(1, "days").toDate()
           : oldTask.deadline,
+        subtasks: subtasks
+          ? {
+              upsert: subtasks.map((st) => ({
+                where: { id: st.id || "" }, // nếu có id thì update
+                update: {
+                  name: st.name,
+                  completed: st.completed,
+                },
+                create: {
+                  name: st.name,
+                  completed: st.completed ?? false,
+                },
+              })),
+            }
+          : undefined,
       },
+      include: { subtasks: true },
     });
+
+    // giữ logic cũ về status theo deadline
+    if (deadline) {
+      const now = new Date();
+      if (updatedTask.deadline && updatedTask.deadline <= now) {
+        updatedTask = await prisma.task.update({
+          where: { id },
+          data: { status: "NOT_DONE" },
+        });
+      } else {
+        updatedTask = await prisma.task.update({
+          where: { id },
+          data: { status: "OVERDUE" },
+        });
+
+        minusXpAndCheckLevel(userId, "overdue");
+      }
+    }
 
     return res.status(200).json({ success: true, data: updatedTask });
   } catch (error) {
@@ -251,9 +325,9 @@ export const markTaskCompleted = async (req, res) => {
         user_id_date: { user_id: id, date: parsedDate },
       },
       data: {
-        completed_tasks: { connect: { id: taskId } },
+        tasks: { connect: { id: taskId } },
       },
-      include: { completed_tasks: true },
+      include: { tasks: true },
     });
 
     const updatedUser = await addXpAndCheckLevel(id);
@@ -271,8 +345,7 @@ export const markTaskCompleted = async (req, res) => {
   }
 };
 
-async function minusXpAndCheckLevel(userId) {
-  // Lấy user cùng level hiện tại
+async function minusXpAndCheckLevel(userId, type) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: { level: true },
@@ -280,10 +353,10 @@ async function minusXpAndCheckLevel(userId) {
 
   if (!user) throw new Error("User not found");
 
-  let newXp = user.xp - TASK_XP;
-  if (newXp < 0) newXp = 0;
+  let newXp;
+  if (type == "overdue") newXp = user.xp - 5;
+  else newXp = user.xp - TASK_XP;
 
-  // Nếu user chưa có level thì set level 1 (giả sử level thấp nhất có xp_required = 0)
   let currentLevel = user.level;
   if (!currentLevel) {
     currentLevel = await prisma.level.findFirst({
@@ -291,7 +364,6 @@ async function minusXpAndCheckLevel(userId) {
     });
   }
 
-  // Lấy level thấp nhất thỏa điều kiện xp_required <= newXp
   const newLevel = await prisma.level.findFirst({
     where: { xp_required: { lte: newXp } },
     orderBy: { xp_required: "desc" },
@@ -299,7 +371,6 @@ async function minusXpAndCheckLevel(userId) {
 
   let newLevelId = newLevel ? newLevel.id : currentLevel.id;
 
-  // Update user
   const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: {
@@ -340,7 +411,30 @@ export const unmarkTaskCompleted = async (req, res) => {
   const { taskId } = req.params;
   try {
     const updatedRecord = await unmarkTaskByTaskId(id, taskId);
-    const updatedUser = await minusXpAndCheckLevel(id);
+    const updatedUser = await minusXpAndCheckLevel(id, "unmark");
+
+    const currentTask = await prisma.task.findUnique({ where: { id: taskId } });
+
+    if (currentTask.deadline <= Date.now) {
+      await prisma.task.update({
+        where: {
+          id: taskId,
+        },
+        data: {
+          status: "NOT_DONE",
+        },
+      });
+    } else {
+      await prisma.task.update({
+        where: {
+          id: taskId,
+        },
+        data: {
+          status: "OVERDUE",
+        },
+      });
+      await minusXpAndCheckLevel(id, "overdue");
+    }
 
     return res.status(200).json({
       success: true,
@@ -389,5 +483,41 @@ export const getDailyRecordForUser = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const updateTaskPriority = async (req, res) => {
+  const id = req.params.taskId;
+  const { is_important, is_urgent } = req.body;
+
+  try {
+    if (is_important === undefined && is_urgent === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one of is_important or is_urgent must be provided",
+      });
+    }
+
+    const oldTask = await prisma.task.findUnique({ where: { id } });
+    if (!oldTask) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Task not found" });
+    }
+
+    const updatedTask = await prisma.task.update({
+      where: { id },
+      data: {
+        is_important: is_important ?? oldTask.is_important,
+        is_urgent: is_urgent ?? oldTask.is_urgent,
+      },
+    });
+
+    return res.status(200).json({ success: true, data: updatedTask });
+  } catch (error) {
+    console.error("Error updating task priority:", error);
+    return res
+      .status(500)
+      .json({ success: false, error: "Internal Server Error" });
   }
 };

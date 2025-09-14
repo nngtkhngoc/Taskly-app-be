@@ -9,6 +9,7 @@ import {
   unmarkTaskCompleted,
   getDailyRecordForUser,
   getTaskById,
+  updateTaskPriority,
 } from "../controllers/taskController.js";
 import { verifyToken } from "../middleware/verifyToken.js";
 
@@ -31,5 +32,7 @@ router
   .delete(verifyToken, unmarkTaskCompleted);
 
 router.route("/record").get(verifyToken, getDailyRecordForUser);
+
+router.route("/priority/:taskId").put(verifyToken, updateTaskPriority);
 
 export default router;
