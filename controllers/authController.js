@@ -207,7 +207,13 @@ export const signIn = async (req, res) => {
       data: user,
     });
   } catch (error) {
-    console.log("Error sign in:", error);
+    if (error.isJoi) {
+      return res.status(400).json({
+        success: false,
+        message: error.details.map((err) => err.message),
+      });
+    }
+    console.log("Error signing up: ", error);
     return res
       .status(500)
       .json({ success: false, message: "Internal Server Error" });

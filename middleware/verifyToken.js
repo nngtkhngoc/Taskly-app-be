@@ -27,7 +27,6 @@ export const verifyToken = async (req, res, next) => {
 
     next();
   } catch (err) {
-    console.log("Error verify token:", err);
     return res.status(500).send("Internal Server Error");
   }
 };

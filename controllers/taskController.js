@@ -53,6 +53,7 @@ export const createTask = async (req, res) => {
   const { id } = req;
 
   try {
+    console.log(subtasks);
     if (!req.body || Object.keys(req.body).length === 0) {
       return res
         .status(400)
@@ -176,6 +177,7 @@ export const updateTask = async (req, res) => {
     let updatedTask = await prisma.task.update({
       where: { id },
       data: {
+        status: oldTask.status,
         name: name ?? oldTask.name,
         note: note ?? oldTask.note,
         category: category ?? oldTask.category,
@@ -187,14 +189,14 @@ export const updateTask = async (req, res) => {
         subtasks: subtasks
           ? {
               upsert: subtasks.map((st) => ({
-                where: { id: st.id || "" }, // nếu có id thì update
+                where: { id: st.id || "" },
                 update: {
                   name: st.name,
-                  completed: st.completed,
+                  is_completed: st.is_completed,
                 },
                 create: {
                   name: st.name,
-                  completed: st.completed ?? false,
+                  is_completed: st.is_completed ?? false,
                 },
               })),
             }
@@ -203,8 +205,7 @@ export const updateTask = async (req, res) => {
       include: { subtasks: true },
     });
 
-    // giữ logic cũ về status theo deadline
-    if (deadline) {
+    if (deadline && oldTask.status != "COMPLETED") {
       const now = new Date();
       if (updatedTask.deadline && updatedTask.deadline <= now) {
         updatedTask = await prisma.task.update({
@@ -223,6 +224,7 @@ export const updateTask = async (req, res) => {
 
     return res.status(200).json({ success: true, data: updatedTask });
   } catch (error) {
+    console.log(error);
     if (error.isJoi) {
       return res.status(400).json({
         success: false,
@@ -318,6 +320,7 @@ export const markTaskCompleted = async (req, res) => {
       },
       data: {
         status: "COMPLETED",
+        completed_at: parsedDate,
       },
     });
     const updatedRecord = await prisma.dailyTaskRecord.update({
@@ -387,7 +390,7 @@ async function unmarkTaskByTaskId(userId, taskId) {
   const record = await prisma.dailyTaskRecord.findFirst({
     where: {
       user_id: userId,
-      completed_tasks: { some: { id: taskId } },
+      tasks: { some: { id: taskId } },
     },
   });
 
@@ -400,9 +403,9 @@ async function unmarkTaskByTaskId(userId, taskId) {
       user_id_date: { user_id: record.user_id, date: record.date },
     },
     data: {
-      completed_tasks: { disconnect: { id: taskId } },
+      tasks: { disconnect: { id: taskId } },
     },
-    include: { completed_tasks: true },
+    include: { tasks: true },
   });
 }
 
@@ -422,6 +425,7 @@ export const unmarkTaskCompleted = async (req, res) => {
         },
         data: {
           status: "NOT_DONE",
+          completed_at: null,
         },
       });
     } else {

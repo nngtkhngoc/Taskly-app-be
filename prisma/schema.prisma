@@ -22,6 +22,7 @@ model task {
   is_important Boolean    @default(false)
   is_urgent    Boolean    @default(false)
   deadline     DateTime
+  completed_at DateTime?
   status       TaskStatus @default(NOT_DONE)
   created_at   DateTime   @default(now())
 
