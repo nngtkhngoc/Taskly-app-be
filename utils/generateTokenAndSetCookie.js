@@ -11,7 +11,7 @@ const generateTokenAndSetCookie = (id, res) => {
     }
   );
 
-  res.cookie("token", jwt, {
+  res.cookie("token", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production", // true khi deploy HTTPS
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
