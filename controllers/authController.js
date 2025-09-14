@@ -88,7 +88,7 @@ export const getUserById = async (req, res) => {
         badges: true,
         notifications: true,
         tasks: { include: { subtasks: true } },
-        daily_task_record: { include: { completed_tasks: true } },
+        daily_task_record: { include: { tasks: true } },
         level: true,
       },
     });
@@ -140,7 +140,7 @@ export const signUp = async (req, res) => {
         badges: true,
         notifications: true,
         tasks: { include: { subtasks: true } },
-        daily_task_record: { include: { completed_tasks: true } },
+        daily_task_record: { include: { tasks: true } },
         level: true,
       },
     });
