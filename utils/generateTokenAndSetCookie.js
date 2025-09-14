@@ -11,10 +11,10 @@ const generateTokenAndSetCookie = (id, res) => {
     }
   );
 
-  res.cookie("jwt", token, {
-    maxAge: 24 * 60 * 60 * 1000, //ms
-    httpOnly: true, //prevent XSS attacks cross-site scripting attack
-    sameSite: "strict", //CSRF attack
+  res.cookie("token", jwt, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production", // true khi deploy HTTPS
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   });
 };
 
