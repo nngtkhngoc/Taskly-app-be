@@ -17,7 +17,6 @@ export const signUpValidator = Joi.object({
       "string.pattern.base": "Invalid email address",
     }),
   password: Joi.string()
-    .pattern(new RegExp("^[a-zA-Z0-9]{3,30}$"))
     .min(6)
     .max(20)
     .messages({
@@ -25,7 +24,6 @@ export const signUpValidator = Joi.object({
       "string.empty": "Password cannot be empty",
       "string.min": "Password must be at least 6 characters",
       "string.max": "Password cannot exceed 20 characters",
-      "string.pattern.base": "Invalid password",
     }),
   confirm_password: Joi.string()
     .required()
